@@ -1,13 +1,12 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import Header from './components/Header.jsx';
 import VehicleForm from './components/VehicleForm.jsx';
 import CalibrationReport from './components/CalibrationReport.jsx';
 import HistoryPanel from './components/HistoryPanel.jsx';
-import { generateTuningPlan } from './api/tuner.js';
-import { Zap, FileText } from 'lucide-react';
+import { streamTuningPlan } from './api/tuner.js';
+import { Zap } from 'lucide-react';
 
 const BLANK_FORM = { year: '', make: '', model: '', miles: '', mods: '', goal: '' };
-
 const MAX_HISTORY = 20;
 
 function loadHistory() {
@@ -21,9 +20,7 @@ function loadHistory() {
 function saveHistory(history) {
   try {
     localStorage.setItem('hpta-history', JSON.stringify(history));
-  } catch {
-    /* storage full or unavailable */
-  }
+  } catch { /* storage full */ }
 }
 
 // ─── Empty / welcome state ─────────────────────────────────────────────────────
@@ -104,13 +101,10 @@ function LoadingState({ vehicle }) {
         'Selecting MAF / speed density approach…',
         'Generating spark timing targets…',
       ].map((msg, i) => (
-        <div
-          key={msg}
-          style={{
-            fontSize: '12px', color: 'var(--text-3)',
-            animation: `fadeIn 0.4s ease ${i * 1.2}s both`,
-          }}
-        >
+        <div key={msg} style={{
+          fontSize: '12px', color: 'var(--text-3)',
+          animation: `fadeIn 0.4s ease ${i * 1.2}s both`,
+        }}>
           {msg}
         </div>
       ))}
@@ -121,40 +115,54 @@ function LoadingState({ vehicle }) {
 
 // ─── App ───────────────────────────────────────────────────────────────────────
 export default function App() {
-  const [formData, setFormData] = useState(BLANK_FORM);
-  const [result, setResult]     = useState(null);
-  const [usage, setUsage]       = useState(null);
-  const [loading, setLoading]   = useState(false);
-  const [error, setError]       = useState('');
-  const [history, setHistory]   = useState(loadHistory);
-  const [activeId, setActiveId] = useState(null);
+  const [formData, setFormData]       = useState(BLANK_FORM);
+  const [result, setResult]           = useState(null);
+  const [usage, setUsage]             = useState(null);
+  const [loading, setLoading]         = useState(false);
+  const [streaming, setStreaming]     = useState(false);
+  const [error, setError]             = useState('');
+  const [history, setHistory]         = useState(loadHistory);
+  const [activeId, setActiveId]       = useState(null);
   const [pendingVehicle, setPendingVehicle] = useState(null);
 
-  // Submit form and call the API
+  // Accumulate streamed text without stale-closure issues
+  const resultRef = useRef('');
+
   const handleSubmit = useCallback(async () => {
     setError('');
     setLoading(true);
+    setStreaming(false);
     setResult(null);
+    setUsage(null);
+    resultRef.current = '';
     setPendingVehicle({ ...formData });
 
     try {
-      const { result: text, usage: u } = await generateTuningPlan(formData);
-      setResult(text);
-      setUsage(u);
+      // Switch from spinner → live report as soon as first chunk arrives
+      let firstChunk = true;
+
+      const usageData = await streamTuningPlan(formData, (chunk) => {
+        if (firstChunk) {
+          firstChunk = false;
+          setLoading(false);
+          setStreaming(true);
+        }
+        resultRef.current += chunk;
+        setResult(resultRef.current);   // triggers re-render with accumulated text
+      });
+
+      setUsage(usageData);
+      setStreaming(false);
       setActiveId(null);
 
-      // Save to history
+      // Save completed result to history
+      const finalText = resultRef.current;
       const entry = {
         id: Date.now().toString(),
         timestamp: Date.now(),
-        year:  formData.year,
-        make:  formData.make,
-        model: formData.model,
-        miles: formData.miles,
-        mods:  formData.mods,
-        goal:  formData.goal,
-        result: text,
-        usage: u,
+        ...formData,
+        result: finalText,
+        usage: usageData,
       };
       setHistory((prev) => {
         const next = [entry, ...prev].slice(0, MAX_HISTORY);
@@ -162,13 +170,12 @@ export default function App() {
         return next;
       });
     } catch (err) {
-      setError(err.message || 'Failed to generate calibration plan. Check that the server is running and your API key is valid.');
-    } finally {
+      setError(err.message || 'Failed to generate calibration plan. Check that your API key is set in Netlify environment variables.');
       setLoading(false);
+      setStreaming(false);
     }
   }, [formData]);
 
-  // Load a history entry
   const handleLoadHistory = useCallback((id) => {
     const entry = history.find((h) => h.id === id);
     if (!entry) return;
@@ -180,25 +187,18 @@ export default function App() {
     setError('');
   }, [history]);
 
-  // Delete one history entry
   const handleDeleteHistory = useCallback((id) => {
     setHistory((prev) => {
       const next = prev.filter((h) => h.id !== id);
       saveHistory(next);
       return next;
     });
-    if (activeId === id) {
-      setResult(null);
-      setActiveId(null);
-    }
+    if (activeId === id) { setResult(null); setActiveId(null); }
   }, [activeId]);
 
-  // Clear all history
   const handleClearHistory = useCallback(() => {
-    setHistory([]);
-    saveHistory([]);
-    setResult(null);
-    setActiveId(null);
+    setHistory([]); saveHistory([]);
+    setResult(null); setActiveId(null);
   }, []);
 
   const vehicleForDisplay = result ? (pendingVehicle || formData) : formData;
@@ -210,20 +210,15 @@ export default function App() {
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         {/* ── Sidebar ── */}
         <aside style={{
-          width: 'var(--sidebar-w)',
-          flexShrink: 0,
-          background: 'var(--surface)',
-          borderRight: '1px solid var(--border)',
-          overflowY: 'auto',
-          padding: '20px',
-          display: 'flex',
-          flexDirection: 'column',
+          width: 'var(--sidebar-w)', flexShrink: 0,
+          background: 'var(--surface)', borderRight: '1px solid var(--border)',
+          overflowY: 'auto', padding: '20px', display: 'flex', flexDirection: 'column',
         }}>
           <VehicleForm
             data={formData}
             onChange={setFormData}
             onSubmit={handleSubmit}
-            loading={loading}
+            loading={loading || streaming}
             error={error}
           />
           <HistoryPanel
@@ -244,6 +239,7 @@ export default function App() {
               vehicle={vehicleForDisplay}
               report={result}
               usage={usage}
+              streaming={streaming}
             />
           )}
 
