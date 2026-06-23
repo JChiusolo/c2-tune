@@ -123,7 +123,7 @@ Generate a complete HP Tuners mpvi4 VCM Suite calibration plan for this build.`;
 
   const stream = client.messages.stream({
     model: 'claude-sonnet-4-6',
-    max_tokens: 4096,
+    max_tokens: 8192,
     system: SYSTEM_PROMPT,
     messages: [{ role: 'user', content: userMessage }],
   });
