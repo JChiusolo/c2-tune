@@ -1,37 +1,61 @@
-// In dev, Vite proxies /api → localhost:3001 (see vite.config.js).
-// In production (Netlify), the function is mounted at /api/tune via config.path.
 const API_URL = '/api/tune';
 
+// Section keys must match SECTIONS object in netlify/functions/tune.js
+export const SECTION_KEYS = [
+  'vehicle-assessment',
+  'tuning-order',
+  'fuel-system',
+  've-table',
+  'spark-timing',
+  'afr-targets',
+  'maf-sd',
+  'boost-control',
+  'rpm-cam-vvt',
+  'transmission',
+  'safety-knock',
+  'data-logging',
+];
+
+export const SECTION_LABELS = {
+  'vehicle-assessment': 'Vehicle Assessment',
+  'tuning-order':       'Tuning Order of Operations',
+  'fuel-system':        '1. Fuel System Calibration',
+  've-table':           '2. Volumetric Efficiency (VE) Table',
+  'spark-timing':       '3. Spark Timing',
+  'afr-targets':        '4. Air/Fuel Ratio Targets',
+  'maf-sd':             '5. MAF / Speed Density',
+  'boost-control':      '6. Boost Control',
+  'rpm-cam-vvt':        '7. RPM & Cam/VVT Parameters',
+  'transmission':       '8. Transmission',
+  'safety-knock':       '9. Safety & Knock Protection',
+  'data-logging':       '10. Data Logging Checklist',
+};
+
 /**
- * Stream a tuning plan from the server, calling onChunk with each text fragment.
+ * Stream a single section from the server.
  *
- * @param {{ year, make, model, miles, mods, goal }} formData
- * @param {(chunk: string) => void} onChunk   - called with each text fragment as it arrives
- * @returns {Promise<{ inputTokens: number, outputTokens: number }>}  usage stats
+ * @param {string} section  - one of SECTION_KEYS
+ * @param {object} formData - { year, make, model, miles, mods, goal }
+ * @param {(chunk: string) => void} onChunk
+ * @returns {Promise<{ inputTokens: number, outputTokens: number }>}
  */
-export async function streamTuningPlan(formData, onChunk) {
+export async function streamSection(section, formData, onChunk) {
   const res = await fetch(API_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(formData),
+    body: JSON.stringify({ ...formData, section }),
   });
 
   if (!res.ok) {
-    // Non-streaming error — parse and throw
     let msg = `Server error: ${res.status}`;
-    try {
-      const data = await res.json();
-      msg = data.error || msg;
-    } catch {
-      /* ignore parse failure */
-    }
+    try { const d = await res.json(); msg = d.error || msg; } catch { /* ignore */ }
     throw new Error(msg);
   }
 
-  const reader = res.body.getReader();
+  const reader  = res.body.getReader();
   const decoder = new TextDecoder();
   let buffer = '';
-  let usage = null;
+  let usage  = null;
 
   while (true) {
     const { done, value } = await reader.read();
@@ -39,23 +63,16 @@ export async function streamTuningPlan(formData, onChunk) {
 
     buffer += decoder.decode(value, { stream: true });
 
-    // Check if the usage sentinel arrived
-    const usageIdx = buffer.indexOf('\n\n__USAGE__');
-    if (usageIdx !== -1) {
-      // Everything before the sentinel is real text
-      const textPart = buffer.slice(0, usageIdx);
+    const sentinelIdx = buffer.indexOf('\n\n__USAGE__');
+    if (sentinelIdx !== -1) {
+      const textPart = buffer.slice(0, sentinelIdx);
       if (textPart) onChunk(textPart);
-
-      // Parse the usage JSON after the sentinel
       try {
-        usage = JSON.parse(buffer.slice(usageIdx + '\n\n__USAGE__'.length));
-      } catch {
-        /* ignore */
-      }
+        usage = JSON.parse(buffer.slice(sentinelIdx + '\n\n__USAGE__'.length));
+      } catch { /* ignore */ }
       break;
     }
 
-    // No sentinel yet — flush the buffer as text
     onChunk(buffer);
     buffer = '';
   }
