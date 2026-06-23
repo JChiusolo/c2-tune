@@ -1,27 +1,24 @@
+// In dev, Vite proxies /api → localhost:3001 (see vite.config.js).
+// In production (Netlify), /.netlify/functions/tune handles the request directly.
+const API_URL = import.meta.env.DEV
+  ? '/api/tune'
+  : '/.netlify/functions/tune';
+
 /**
- * Sends vehicle build data to the Express API, which calls Anthropic.
- * The API key lives only on the server — never in the browser bundle.
- *
- * @param {Object} vehicleData
- * @param {string} vehicleData.year
- * @param {string} vehicleData.make
- * @param {string} vehicleData.model
- * @param {string} vehicleData.miles
- * @param {string} vehicleData.mods
- * @param {string} vehicleData.goal
+ * @param {{ year, make, model, miles, mods, goal }} formData
  * @returns {Promise<{ result: string, usage: { inputTokens: number, outputTokens: number } }>}
  */
-export async function generateTuningPlan(vehicleData) {
-  const response = await fetch('/api/tune', {
+export async function generateTuningPlan(formData) {
+  const res = await fetch(API_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(vehicleData),
+    body: JSON.stringify(formData),
   });
 
-  const data = await response.json();
+  const data = await res.json();
 
-  if (!response.ok) {
-    throw new Error(data.error || `Server returned ${response.status}`);
+  if (!res.ok) {
+    throw new Error(data.error || `Server error: ${res.status}`);
   }
 
   return data;
