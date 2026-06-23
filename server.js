@@ -115,31 +115,72 @@ ${goal.trim()}
 Generate a complete HP Tuners mpvi4 VCM Suite calibration plan for this build.`;
 
   try {
-    const message = await client.messages.create({
+  console.time('anthropic-request');
+
+  const controller = new AbortController();
+
+  const timeoutId = setTimeout(() => {
+    controller.abort();
+  }, 25000);
+
+  const message = await client.messages.create(
+    {
       model: 'claude-sonnet-4-6',
-      max_tokens: 4096,
+      max_tokens: 2000,
       system: SYSTEM_PROMPT,
-      messages: [{ role: 'user', content: userMessage }],
-    });
+      messages: [
+        {
+          role: 'user',
+          content: userMessage,
+        },
+      ],
+    },
+    {
+      signal: controller.signal,
+    }
+  );
 
-    const text = message.content
-      .filter((block) => block.type === 'text')
-      .map((block) => block.text)
-      .join('\n');
+  clearTimeout(timeoutId);
 
-    res.json({
-      result: text,
-      usage: {
-        inputTokens: message.usage.input_tokens,
-        outputTokens: message.usage.output_tokens,
-      },
+  console.timeEnd('anthropic-request');
+
+  console.log('Token Usage:', {
+    input: message.usage.input_tokens,
+    output: message.usage.output_tokens,
+  });
+
+  const text = message.content
+    .filter((block) => block.type === 'text')
+    .map((block) => block.text)
+    .join('\n');
+
+  res.json({
+    result: text,
+    usage: {
+      inputTokens: message.usage.input_tokens,
+      outputTokens: message.usage.output_tokens,
+    },
+  });
+} catch (err) {
+  console.error('[Anthropic Error]', {
+    message: err.message,
+    status: err.status,
+    name: err.name,
+  });
+
+  if (err.name === 'AbortError') {
+    return res.status(504).json({
+      error:
+        'Claude request exceeded 25 seconds and was terminated before completion.',
     });
-  } catch (err) {
-    console.error('[Anthropic Error]', err.message);
-    const status = err.status || 500;
-    res.status(status).json({ error: err.message || 'Failed to generate calibration plan.' });
   }
-});
+
+  const status = err.status || 500;
+
+  res.status(status).json({
+    error: err.message || 'Failed to generate calibration plan.',
+  });
+}
 
 // ─── Catch-all: serve React app in production ─────────────────────────────────
 if (process.env.NODE_ENV === 'production') {
