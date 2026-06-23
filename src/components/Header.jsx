@@ -71,8 +71,8 @@ export default function Header() {
         <div style={styles.iconWrap}>
           <Zap size={16} color="var(--accent)" strokeWidth={2.5} />
         </div>
-        <span style={styles.title}>HP Tuners Calibration Agent</span>
-        <span style={styles.badge}>mpvi4</span>
+        <span style={styles.title}>C-Tuner High Performance Automotive Application</span>
+        <span style={styles.badge}>mpvi4 tool</span>
       </div>
 
       <div style={styles.right}>
