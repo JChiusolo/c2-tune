@@ -1,0 +1,40 @@
+{
+  "name": "hp-tuners-calibration-agent",
+  "version": "1.0.0",
+  "description": "AI-powered HP Tuners mpvi4 software calibration recommendation tool for high-performance automotive tuners",
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently \"vite --port 5173\" \"node server.js\"",
+    "build": "vite build",
+    "start": "NODE_ENV=production node server.js",
+    "server": "node server.js",
+    "client": "vite --port 5173"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.52.0",
+    "concurrently": "^8.2.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.0",
+    "lucide-react": "^0.445.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.1",
+    "vite": "^5.4.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "hp-tuners",
+    "automotive",
+    "calibration",
+    "ecu-tuning",
+    "performance",
+    "anthropic",
+    "ai"
+  ],
+  "license": "MIT"
+}
