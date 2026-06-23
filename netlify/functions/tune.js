@@ -1,5 +1,11 @@
 import Anthropic from '@anthropic-ai/sdk';
 
+// ─── Netlify streaming function config ────────────────────────────────────────
+// New-style Netlify Functions (v2) — export default + return a Response
+export const config = {
+  path: '/api/tune',
+};
+
 const SYSTEM_PROMPT = `You are a master automotive calibration engineer with 20+ years of professional experience using HP Tuners VCM Suite with the mpvi4 interface. You have built your career on the dyno — calibrating everything from mild street builds to 2,000hp race programs across all major domestic and import platforms.
 
 Your platform expertise includes:
@@ -70,38 +76,35 @@ Flag any of these on a dedicated line when applicable:
 
 Be direct, authoritative, and technically specific. Give the actual calibration strategy — no generic advice.`;
 
-export const handler = async (event) => {
-  // Only allow POST
-  if (event.httpMethod !== 'POST') {
-    return {
-      statusCode: 405,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ error: 'Method not allowed' }),
-    };
+// ─── Helper: error response ────────────────────────────────────────────────────
+function errorResponse(status, message) {
+  return new Response(JSON.stringify({ error: message }), {
+    status,
+    headers: { 'Content-Type': 'application/json' },
+  });
+}
+
+// ─── Main handler ──────────────────────────────────────────────────────────────
+export default async function handler(req) {
+  if (req.method !== 'POST') {
+    return errorResponse(405, 'Method not allowed');
   }
 
   // Parse body
   let body;
   try {
-    body = JSON.parse(event.body || '{}');
+    body = await req.json();
   } catch {
-    return {
-      statusCode: 400,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ error: 'Invalid JSON body' }),
-    };
+    return errorResponse(400, 'Invalid JSON body');
   }
 
   const { year, make, model, miles, mods, goal } = body;
 
   if (!make || !model || !year || !mods || !goal) {
-    return {
-      statusCode: 400,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        error: 'Missing required fields: year, make, model, mods, and goal are all required.',
-      }),
-    };
+    return errorResponse(
+      400,
+      'Missing required fields: year, make, model, mods, and goal are all required.'
+    );
   }
 
   const userMessage = `Vehicle: ${year} ${make} ${model}
@@ -115,70 +118,52 @@ ${goal.trim()}
 
 Generate a complete HP Tuners mpvi4 VCM Suite calibration plan for this build.`;
 
-  try {
-  console.time('anthropic-request');
+  // ─── Anthropic streaming ─────────────────────────────────────────────────────
+  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-  const controller = new AbortController();
-
-  const timeoutId = setTimeout(() => {
-    controller.abort();
-  }, 25000);
-
-  const message = await client.messages.create(
-    {
-      model: 'claude-sonnet-4-6',
-      max_tokens: 2000,
-      system: SYSTEM_PROMPT,
-      messages: [
-        {
-          role: 'user',
-          content: userMessage,
-        },
-      ],
-    },
-    {
-      signal: controller.signal,
-    }
-  );
-
-  clearTimeout(timeoutId);
-
-  console.timeEnd('anthropic-request');
-
-  console.log('Token Usage:', {
-    input: message.usage.input_tokens,
-    output: message.usage.output_tokens,
+  const stream = client.messages.stream({
+    model: 'claude-sonnet-4-6',
+    max_tokens: 4096,
+    system: SYSTEM_PROMPT,
+    messages: [{ role: 'user', content: userMessage }],
   });
 
-  const text = message.content
-    .filter((block) => block.type === 'text')
-    .map((block) => block.text)
-    .join('\n');
-
-  res.json({
-    result: text,
-    usage: {
-      inputTokens: message.usage.input_tokens,
-      outputTokens: message.usage.output_tokens,
+  // Pipe Anthropic text chunks → ReadableStream → HTTP response
+  const readable = new ReadableStream({
+    async start(controller) {
+      const encoder = new TextEncoder();
+      try {
+        for await (const chunk of stream) {
+          if (
+            chunk.type === 'content_block_delta' &&
+            chunk.delta?.type === 'text_delta'
+          ) {
+            controller.enqueue(encoder.encode(chunk.delta.text));
+          }
+        }
+        // After stream ends, send usage as a final JSON line
+        const finalMessage = await stream.finalMessage();
+        const usage = finalMessage.usage;
+        const usageLine = '\n\n__USAGE__' + JSON.stringify({
+          inputTokens: usage.input_tokens,
+          outputTokens: usage.output_tokens,
+        });
+        controller.enqueue(encoder.encode(usageLine));
+        controller.close();
+      } catch (err) {
+        console.error('[Stream Error]', err.message);
+        controller.error(err);
+      }
     },
   });
-} catch (err) {
-  console.error('[Anthropic Error]', {
-    message: err.message,
-    status: err.status,
-    name: err.name,
-  });
 
-  if (err.name === 'AbortError') {
-    return res.status(504).json({
-      error:
-        'Claude request exceeded 25 seconds and was terminated before completion.',
-    });
-  }
-
-  const status = err.status || 500;
-
-  res.status(status).json({
-    error: err.message || 'Failed to generate calibration plan.',
+  return new Response(readable, {
+    status: 200,
+    headers: {
+      'Content-Type': 'text/plain; charset=utf-8',
+      'Transfer-Encoding': 'chunked',
+      'X-Content-Type-Options': 'nosniff',
+      'Cache-Control': 'no-cache',
+    },
   });
 }
