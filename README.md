@@ -1,8 +1,6 @@
-# HP Tuners Calibration Agent ⚡
+# C-Tuner High Performance Automotive Application ⚡
 
-An AI-powered software calibration recommendation tool for HP Tuners mpvi4 / VCM Suite. Built with React + Express + Anthropic Claude Sonnet.
-
-Enter a vehicle's year/make/model, mileage, hardware modifications, and client goal — the agent produces a detailed, platform-specific calibration plan covering VE tables, spark timing, fueling strategy, MAF/SD selection, boost control, transmission calibration, knock protection, and a dyno/street data logging checklist.
+Enter a vehicle's year/make/model, mileage, hardware modifications, and client goal and the agent produces a detailed, platform-specific calibration plan covering VE tables, spark timing, fueling strategy, MAF/SD selection, boost control, transmission calibration, knock protection, and a dyno/street data logging checklist.
 
 ---
 
