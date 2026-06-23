@@ -2,7 +2,7 @@ import { Wrench, Target, AlertCircle } from 'lucide-react';
 
 const GOAL_PRESETS = [
   { label: 'Max street power — 93 oct', value: 'Maximum reliable street performance on 93 octane pump gas. Daily driver — must idle cleanly and pass emissions.' },
-  { label: 'Street/strip — E85', value: 'Maximum power on E85 ethanol. Street-driven but track use on weekends. No emissions requirement.' },
+  { label: 'Street/strip — 89 oct', value: 'Maximum power on 89 octane pump gas. Street-driven but track use on weekends. No emissions requirement.' },
   { label: 'Tow/haul — economy + torque', value: 'Maximize low-end torque and towing capacity. Optimize fuel economy at cruise. Prioritize reliability and transmission longevity.' },
   { label: 'Race only — no street', value: 'Maximum race power — no street or emissions requirement. Aggressive timing, target max power band, no idle drivability concern.' },
 ];
