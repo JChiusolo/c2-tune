@@ -208,3 +208,14 @@ button:disabled {
   white-space: nowrap;
   border-width: 0;
 }
+
+/* ─── Additional tokens for AWS pipeline UI ─────────────────────────────────── */
+:root {
+  --success:     #10B981;
+  --success-dim: rgba(16, 185, 129, 0.12);
+}
+
+/* Animated spinner for export states */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
