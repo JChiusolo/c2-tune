@@ -1,7 +1,7 @@
 {
-  "name": "hp-tuners-calibration-agent",
-  "version": "1.0.0",
-  "description": "AI-powered HP Tuners mpvi4 software calibration recommendation tool for high-performance automotive tuners",
+  "name": "c-tunes-calibration-agent",
+  "version": "2.0.0",
+  "description": "C-Tunes software calibration recommendation tool",
   "type": "module",
   "scripts": {
     "dev": "concurrently \"vite --port 5173\" \"node server.js\"",
@@ -12,10 +12,14 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.52.0",
+    "@aws-sdk/client-dynamodb": "^3.600.0",
+    "@aws-sdk/client-sfn": "^3.600.0",
+    "@aws-sdk/lib-dynamodb": "^3.600.0",
     "concurrently": "^8.2.2",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.21.0",
+    "express-rate-limit": "^7.4.0",
     "lucide-react": "^0.445.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
@@ -28,12 +32,14 @@
     "node": ">=18.0.0"
   },
   "keywords": [
-    "hp-tuners",
+    "c-tunes",
     "automotive",
     "calibration",
     "ecu-tuning",
     "performance",
     "anthropic",
+    "aws",
+    "step-functions",
     "ai"
   ],
   "license": "MIT"
