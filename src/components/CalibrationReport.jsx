@@ -123,6 +123,9 @@ function SectionCard({ section }) {
 
 // ─── Parse report markdown into sections ──────────────────────────────────────
 function parseReport(text) {
+  // Guard: must be a non-empty string — any other value returns empty array
+  if (!text || typeof text !== 'string' || text.trim().length === 0) return [];
+
   const lines = text.split('\n');
   const sections = [];
   let current = null;
@@ -332,6 +335,18 @@ function ExportCsvButton({ report, vehicle }) {
 // ─── Main CalibrationReport ────────────────────────────────────────────────────
 export default function CalibrationReport({ vehicle, report, usage }) {
   const [copied, setCopied] = useState(false);
+
+  // Hard guard — if report is not a string for any reason, render nothing.
+  // App.jsx's ErrorBoundary + isValidResult check should prevent this,
+  // but this is the last line of defense against a blank-screen crash.
+  if (!report || typeof report !== 'string' || report.trim().length === 0) {
+    return (
+      <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-3)', fontSize: '14px' }}>
+        No calibration report available. Please generate a new plan.
+      </div>
+    );
+  }
+
   const sections = parseReport(report);
 
   const vehicleLabel = `${vehicle.year} ${vehicle.make} ${vehicle.model}`;
