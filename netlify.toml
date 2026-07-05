@@ -3,14 +3,17 @@
   publish   = "dist"
   functions = "netlify/functions"
 
-# Node.js version for functions
 [functions]
   node_bundler = "esbuild"
 
-# Proxy all /api/* requests to Netlify Functions
 [[redirects]]
   from   = "/api/tune"
   to     = "/.netlify/functions/tune"
+  status = 200
+
+[[redirects]]
+  from   = "/api/tune-section"
+  to     = "/.netlify/functions/tune-section"
   status = 200
 
 [[redirects]]
@@ -34,18 +37,15 @@
   to     = "/index.html"
   status = 200
 
-# Security headers
 [[headers]]
   for = "/*"
   [headers.values]
     X-Frame-Options        = "DENY"
-    X-XSS-Protection       = "1; mode=block"
     X-Content-Type-Options = "nosniff"
     Referrer-Policy        = "strict-origin-when-cross-origin"
-    Permissions-Policy     = "camera=(), microphone=(), geolocation=()"
 
-# Cache built assets aggressively (Vite adds content hashes)
 [[headers]]
   for = "/assets/*"
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
+    
