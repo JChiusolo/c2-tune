@@ -4,7 +4,7 @@ import VehicleForm from './components/VehicleForm.jsx';
 import CalibrationReport from './components/CalibrationReport.jsx';
 import HistoryPanel from './components/HistoryPanel.jsx';
 import { generateTuningPlan } from './api/tuner.js';
-import { Zap, AlertTriangle, RefreshCw } from 'lucide-react';
+import { IconZap, IconAlertTriangle, IconRefreshCw } from './components/Icons.jsx';
 
 const BLANK_FORM = { year: '', make: '', model: '', miles: '', mods: '', goal: '' };
 const MAX_HISTORY = 20;
@@ -62,7 +62,7 @@ class ErrorBoundary extends Component {
           border: '1px solid rgba(248,113,113,0.3)', borderRadius: '12px',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}>
-          <AlertTriangle size={22} color="var(--danger)" />
+          <IconAlertTriangle size={22} color="var(--danger)" />
         </div>
         <div>
           <p style={{ fontSize: '15px', fontWeight: '500', color: 'var(--text)', marginBottom: '6px' }}>
@@ -79,7 +79,7 @@ class ErrorBoundary extends Component {
             this.props.onReset?.();
           }}
         >
-          <RefreshCw size={13} /> Clear and start over
+          <IconRefreshCw size={13} /> Clear and start over
         </button>
       </div>
     );
@@ -98,7 +98,7 @@ function EmptyState() {
         border: '1px solid rgba(245,158,11,0.2)', borderRadius: '14px',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
       }}>
-        <Zap size={24} color="var(--accent)" strokeWidth={1.5} />
+        <IconZap size={24} color="var(--accent)" strokeWidth={1.5} />
       </div>
       <div>
         <h2 style={{ fontSize: '17px', fontWeight: '600', color: 'var(--text)', marginBottom: '8px' }}>
