@@ -1,81 +1,44 @@
-const API_URL = '/api/tune';
-
-// Section keys must match SECTIONS object in netlify/functions/tune.js
-export const SECTION_KEYS = [
-  'vehicle-assessment',
-  'tuning-order',
-  'fuel-system',
-  've-table',
-  'spark-timing',
-  'afr-targets',
-  'maf-sd',
-  'boost-control',
-  'rpm-cam-vvt',
-  'transmission',
-  'safety-knock',
-  'data-logging',
-];
-
-export const SECTION_LABELS = {
-  'vehicle-assessment': 'Vehicle Assessment',
-  'tuning-order':       'Tuning Order of Operations',
-  'fuel-system':        '1. Fuel System Calibration',
-  've-table':           '2. Volumetric Efficiency (VE) Table',
-  'spark-timing':       '3. Spark Timing',
-  'afr-targets':        '4. Air/Fuel Ratio Targets',
-  'maf-sd':             '5. MAF / Speed Density',
-  'boost-control':      '6. Boost Control',
-  'rpm-cam-vvt':        '7. RPM & Cam/VVT Parameters',
-  'transmission':       '8. Transmission',
-  'safety-knock':       '9. Safety & Knock Protection',
-  'data-logging':       '10. Data Logging Checklist',
-};
-
 /**
- * Stream a single section from the server.
+ * Calls the /api/tune backend endpoint and returns the calibration plan.
+ * The Anthropic API key lives only on the server — never in the browser bundle.
  *
- * @param {string} section  - one of SECTION_KEYS
- * @param {object} formData - { year, make, model, miles, mods, goal }
- * @param {(chunk: string) => void} onChunk
- * @returns {Promise<{ inputTokens: number, outputTokens: number }>}
+ * @param {Object} vehicleData - { year, make, model, miles, mods, goal }
+ * @returns {Promise<{ result: string, usage: { inputTokens, outputTokens } }>}
  */
-export async function streamSection(section, formData, onChunk) {
-  const res = await fetch(API_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ...formData, section }),
-  });
+export async function generateTuningPlan(vehicleData) {
+  let response;
 
-  if (!res.ok) {
-    let msg = `Server error: ${res.status}`;
-    try { const d = await res.json(); msg = d.error || msg; } catch { /* ignore */ }
-    throw new Error(msg);
+  try {
+    response = await fetch('/api/tune', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(vehicleData),
+    });
+  } catch (networkErr) {
+    throw new Error('Network error — could not reach the server. Check your connection or Netlify function logs.');
   }
 
-  const reader  = res.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = '';
-  let usage  = null;
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-
-    buffer += decoder.decode(value, { stream: true });
-
-    const sentinelIdx = buffer.indexOf('\n\n__USAGE__');
-    if (sentinelIdx !== -1) {
-      const textPart = buffer.slice(0, sentinelIdx);
-      if (textPart) onChunk(textPart);
-      try {
-        usage = JSON.parse(buffer.slice(sentinelIdx + '\n\n__USAGE__'.length));
-      } catch { /* ignore */ }
-      break;
-    }
-
-    onChunk(buffer);
-    buffer = '';
+  let data;
+  try {
+    data = await response.json();
+  } catch {
+    throw new Error(`Server returned a non-JSON response (status ${response.status}). Check Netlify function logs.`);
   }
 
-  return usage || { inputTokens: 0, outputTokens: 0 };
+  if (!response.ok) {
+    throw new Error(data?.error || `Server returned ${response.status}`);
+  }
+
+  // Validate that result is a non-empty string before returning
+  if (!data?.result || typeof data.result !== 'string' || data.result.trim().length === 0) {
+    throw new Error(
+      'The server returned an empty or malformed response. ' +
+      'Verify ANTHROPIC_API_KEY is set in Netlify → Site settings → Environment variables.'
+    );
+  }
+
+  return {
+    result: data.result,
+    usage: data.usage || null,
+  };
 }
