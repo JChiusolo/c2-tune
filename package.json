@@ -1,7 +1,7 @@
 {
-  "name": "c-tunes-calibration-agent",
-  "version": "2.1.0",
-  "description": "C-Tunes software calibration recommendation tool",
+  "name": "hp-tuners-calibration-agent",
+  "version": "2.2.0",
+  "description": "AI-powered HP Tuners mpvi4 calibration recommendation tool with AWS CSV pipeline",
   "type": "module",
   "scripts": {
     "dev": "concurrently \"vite --port 5173\" \"node server.js\"",
@@ -20,7 +20,6 @@
     "dotenv": "16.4.5",
     "express": "4.21.0",
     "express-rate-limit": "7.4.0",
-    "lucide-react": "0.445.0",
     "react": "18.3.1",
     "react-dom": "18.3.1"
   },
@@ -28,19 +27,6 @@
     "@vitejs/plugin-react": "4.3.1",
     "vite": "5.4.1"
   },
-  "engines": {
-    "node": ">=18.0.0"
-  },
-  "keywords": [
-    "hp-tuners",
-    "automotive",
-    "calibration",
-    "ecu-tuning",
-    "performance",
-    "anthropic",
-    "aws",
-    "step-functions",
-    "ai"
-  ],
+  "engines": { "node": ">=18.0.0" },
   "license": "MIT"
 }
