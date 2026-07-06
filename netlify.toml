@@ -1,17 +1,17 @@
 [build]
-  command       = "npm run build"
-  publish       = "dist"
+  command  = "npm run build"
+  publish  = "dist"
 
-# Edge functions directory — Netlify auto-discovers files here
+# Lambda functions (server.js local dev mirror — not used in production)
 [functions]
-  node_bundler  = "esbuild"
+  node_bundler = "esbuild"
 
-# Route /api/tune-section to the edge function
+# Edge function — routes /api/tune-section to netlify/edge-functions/tune-section.js
 [[edge_functions]]
   path     = "/api/tune-section"
   function = "tune-section"
 
-# SPA catch-all — serve index.html for all non-asset routes
+# SPA catch-all
 [[redirects]]
   from   = "/*"
   to     = "/index.html"
