@@ -1,14 +1,14 @@
 // ─── Netlify Edge Function ─────────────────────────────────────────────────────
-// Edge Functions run on Deno at Netlify's CDN edge nodes.
-// Key differences from Lambda functions:
-//   • No hard execution timeout — the stream stays open as long as needed
-//   • Uses Deno-compatible imports (npm: specifier for the Anthropic SDK)
+// Runs on Netlify's Deno-based edge runtime.
+// Important differences from Lambda functions:
+//   • Import via esm.sh URL — NOT npm: specifier (that's raw Deno, not Netlify edge)
+//   • Env vars via Netlify.env.get() — NOT Deno.env.get() or process.env
+//   • No hard timeout — stream stays open as long as Anthropic is generating
 //   • Returns a native Response with a ReadableStream body
-//   • process.env → Deno.env.get()
 
-import Anthropic from 'npm:@anthropic-ai/sdk';
+import Anthropic from 'https://esm.sh/@anthropic-ai/sdk@0.52.0';
 
-// ─── Base identity shared across all section prompts ──────────────────────────
+// ─── Base identity ─────────────────────────────────────────────────────────────
 const BASE_IDENTITY = `You are a master automotive calibration engineer with 20+ years of professional experience using HP Tuners VCM Suite with the mpvi4 interface. You have built your career on the dyno — calibrating everything from mild street builds to 2,000hp race programs across all major domestic and import platforms.
 
 Your platform expertise includes GM Gen III/IV LS series (LS1/LS2/LS3/LS6/LS7/LS9/LSA), Gen V LT series (LT1/LT4/LT5), Ecotec, LFX/LGX V6, Duramax diesel; Ford 4.6/5.4 Modular, 5.0 Coyote (Gen 1/2/3), 5.2 Voodoo/Predator, 2.3/3.5 EcoBoost, 7.3 Godzilla; Chrysler/Dodge 5.7/6.1/6.4 HEMI, Gen III HEMI (392, Hellcat 6.2, Demon, Redeye), 3.6 Pentastar; imports including Honda K-series/B-series, Toyota 2JZ-GTE/1JZ-GTE, Subaru EJ20/EJ25/FA20DIT, Nissan VQ35/RB26DETT, Mitsubishi 4G63.
@@ -134,7 +134,7 @@ Generate ONLY the ## 7. RPM & Cam/VVT Parameters section. Address ALL of the fol
     prompt: `${BASE_IDENTITY}
 
 Generate ONLY the ## 8. Transmission section.
-If manual transmission or not applicable, state that clearly and note any clutch or drivetrain calibration considerations.
+If manual transmission or not applicable, state that clearly and note any drivetrain calibration considerations.
 If automatic, identify the specific transmission unit for this platform and address ALL of the following:
 - Shift point tables: upshift and downshift RPM targets for performance mode vs. street/economy mode
 - Torque converter clutch (TCC) lockup map: lockup enable speed and load thresholds
@@ -234,8 +234,8 @@ export default async function handler(req) {
     );
   }
 
-  // Deno.env.get() — Edge Functions run on Deno, not Node
-  const apiKey = Deno.env.get('ANTHROPIC_API_KEY');
+  // Netlify Edge Functions expose env vars via Netlify.env.get()
+  const apiKey = Netlify.env.get('ANTHROPIC_API_KEY');
   if (!apiKey) {
     return new Response(
       JSON.stringify({ error: 'ANTHROPIC_API_KEY is not set in Netlify environment variables.' }),
@@ -244,11 +244,9 @@ export default async function handler(req) {
   }
 
   const client = new Anthropic({ apiKey });
-
   const userMessage = buildUserMessage(year, make, model, miles, mods, goal, sectionDef.header);
 
   // ── Pipe Anthropic SSE stream → ReadableStream → HTTP response ───────────────
-  // The browser receives text chunks token-by-token with no timeout risk.
   const readable = new ReadableStream({
     async start(controller) {
       const encoder = new TextEncoder();
@@ -274,11 +272,12 @@ export default async function handler(req) {
             outputTokens: final.usage.output_tokens,
           })
         ));
-
         controller.close();
       } catch (err) {
         console.error('[Edge stream error]', err.message);
-        controller.enqueue(encoder.encode('\n\n__ERROR__' + JSON.stringify({ error: err.message })));
+        controller.enqueue(encoder.encode(
+          '\n\n__ERROR__' + JSON.stringify({ error: err.message })
+        ));
         controller.close();
       }
     },
@@ -295,5 +294,4 @@ export default async function handler(req) {
   });
 }
 
-// Tell Netlify which URL path this edge function handles
 export const config = { path: '/api/tune-section' };
