@@ -1,12 +1,16 @@
 /**
- * generateSection — calls /api/tune-section for a single calibration section.
- * Each call is scoped to one section, keeping responses fast and well inside
- * Netlify's function timeout (each section: ~5–10 s, max_tokens: 1 200).
+ * streamSection — calls the Edge Function at /api/tune-section and streams
+ * the response token-by-token, calling onChunk for each text fragment.
  *
- * @param {Object} vehicleData  - { year, make, model, miles, mods, goal }
- * @param {string} sectionKey  - one of SECTION_BUTTONS[].key  e.g. 'fuel-system'
+ * The Edge Function has no hard timeout and pipes Anthropic's SSE stream
+ * directly to the browser, so text appears in real-time.
+ *
+ * @param {Object}   vehicleData  - { year, make, model, miles, mods, goal }
+ * @param {string}   sectionKey   - one of SECTION_BUTTONS[].key e.g. 'fuel-system'
+ * @param {Function} onChunk      - called with each text fragment as it arrives
+ * @returns {Promise<{ inputTokens: number, outputTokens: number }>}
  */
-export async function generateSection(vehicleData, sectionKey) {
+export async function streamSection(vehicleData, sectionKey, onChunk) {
   let response;
   try {
     response = await fetch('/api/tune-section', {
@@ -15,26 +19,54 @@ export async function generateSection(vehicleData, sectionKey) {
       body:    JSON.stringify({ ...vehicleData, section: sectionKey }),
     });
   } catch (networkErr) {
-    throw new Error('Network error — could not reach the server. Check your connection or Netlify function logs.');
-  }
-
-  let data;
-  try {
-    data = await response.json();
-  } catch {
-    throw new Error(`Server returned a non-JSON response (status ${response.status}). Check Netlify function logs.`);
+    throw new Error('Network error — could not reach the server. Check your connection.');
   }
 
   if (!response.ok) {
-    throw new Error(data?.error || `Server returned ${response.status}`);
+    let msg = `Server error: ${response.status}`;
+    try { const d = await response.json(); msg = d.error || msg; } catch { /* ignore */ }
+    throw new Error(msg);
   }
 
-  if (!data?.result || typeof data.result !== 'string' || !data.result.trim()) {
-    throw new Error(
-      'The server returned an empty response. ' +
-      'Verify ANTHROPIC_API_KEY is set in Netlify → Site settings → Environment variables.'
-    );
+  const reader  = response.body.getReader();
+  const decoder = new TextDecoder();
+  let   buffer  = '';
+  let   usage   = null;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+
+    // Check for error sentinel
+    const errIdx = buffer.indexOf('\n\n__ERROR__');
+    if (errIdx !== -1) {
+      try {
+        const parsed = JSON.parse(buffer.slice(errIdx + '\n\n__ERROR__'.length));
+        throw new Error(parsed.error || 'Stream error from server');
+      } catch (e) {
+        throw new Error(e.message || 'Unknown stream error');
+      }
+    }
+
+    // Check for usage sentinel — marks end of real text
+    const usageIdx = buffer.indexOf('\n\n__USAGE__');
+    if (usageIdx !== -1) {
+      const textPart = buffer.slice(0, usageIdx);
+      if (textPart) onChunk(textPart);
+      try {
+        usage = JSON.parse(buffer.slice(usageIdx + '\n\n__USAGE__'.length));
+      } catch { /* ignore parse failure */ }
+      break;
+    }
+
+    // No sentinel yet — flush buffer as live text
+    if (buffer) {
+      onChunk(buffer);
+      buffer = '';
+    }
   }
 
-  return { result: data.result, usage: data.usage || null };
+  return usage || { inputTokens: 0, outputTokens: 0 };
 }
