@@ -1,51 +1,18 @@
 [build]
-  command   = "npm run build"
-  publish   = "dist"
-  functions = "netlify/functions"
+  command       = "npm run build"
+  publish       = "dist"
 
+# Edge functions directory — Netlify auto-discovers files here
 [functions]
-  node_bundler = "esbuild"
+  node_bundler  = "esbuild"
 
-[[redirects]]
-  from   = "/api/tune"
-  to     = "/.netlify/functions/tune"
-  status = 200
+# Route /api/tune-section to the edge function
+[[edge_functions]]
+  path     = "/api/tune-section"
+  function = "tune-section"
 
-[[redirects]]
-  from   = "/api/tune-section"
-  to     = "/.netlify/functions/tune-section"
-  status = 200
-
-[[redirects]]
-  from   = "/api/generate-csv"
-  to     = "/.netlify/functions/generate-csv"
-  status = 200
-
-[[redirects]]
-  from   = "/api/csv-status/:jobId"
-  to     = "/.netlify/functions/csv-status"
-  status = 200
-
-[[redirects]]
-  from   = "/api/health"
-  to     = "/.netlify/functions/health"
-  status = 200
-
-# SPA fallback — must be last
+# SPA catch-all — serve index.html for all non-asset routes
 [[redirects]]
   from   = "/*"
   to     = "/index.html"
   status = 200
-
-[[headers]]
-  for = "/*"
-  [headers.values]
-    X-Frame-Options        = "DENY"
-    X-Content-Type-Options = "nosniff"
-    Referrer-Policy        = "strict-origin-when-cross-origin"
-
-[[headers]]
-  for = "/assets/*"
-  [headers.values]
-    Cache-Control = "public, max-age=31536000, immutable"
-    
