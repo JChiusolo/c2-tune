@@ -6,7 +6,7 @@
 //   • No hard timeout — stream stays open as long as Anthropic is generating
 //   • Returns a native Response with a ReadableStream body
 
-import Anthropic from 'https://esm.sh/@anthropic-ai/sdk@0.52.0';
+import Anthropic from '@anthropic-ai/sdk';
 
 // ─── Base identity ─────────────────────────────────────────────────────────────
 const BASE_IDENTITY = `You are a master automotive calibration engineer with 20+ years of professional experience using HP Tuners VCM Suite with the mpvi4 interface. You have built your career on the dyno — calibrating everything from mild street builds to 2,000hp race programs across all major domestic and import platforms.
